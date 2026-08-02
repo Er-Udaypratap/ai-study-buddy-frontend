@@ -3,11 +3,13 @@ import { supabase } from "./supabaseClient";
 import Signup from "./components/Signup";
 import Login from "./components/Login";
 import Chat from "./components/Chat";
+import Privacy from "./components/Privacy";
 import ThemeToggle from "./components/ThemeToggle";
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState("login"); // "login" | "signup"
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
 
@@ -26,7 +28,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Bootstrap 5.3 ka native dark mode attribute
+    document.documentElement.setAttribute("data-theme", theme);
     document.documentElement.setAttribute("data-bs-theme", theme);
     localStorage.setItem("theme", theme);
   }, [theme]);
@@ -38,7 +40,18 @@ export default function App() {
   }
 
   if (user) {
-    return <Chat user={user} onLogout={() => setUser(null)} theme={theme} onToggleTheme={toggleTheme} />;
+    if (showPrivacy) {
+      return <Privacy onBack={() => setShowPrivacy(false)} />;
+    }
+    return (
+      <Chat
+        user={user}
+        onLogout={() => setUser(null)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onShowPrivacy={() => setShowPrivacy(true)}
+      />
+    );
   }
 
   return (
