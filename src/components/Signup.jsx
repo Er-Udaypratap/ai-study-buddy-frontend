@@ -19,16 +19,16 @@ export default function Signup({ onSwitchToLogin }) {
 
   const validate = () => {
     if (!form.fullName || !form.email || !form.mobileNo || !form.password) {
-      return "Sabhi fields bharna zaroori hai.";
+      return "compulsory to file all fields.";
     }
     if (!/^\d{10}$/.test(form.mobileNo)) {
-      return "Mobile number 10 digit ka valid number hona chahiye.";
+      return "Mobile number 10 digit and valid number fill.";
     }
     if (form.password.length < 6) {
-      return "Password kam se kam 6 characters ka hona chahiye.";
+      return "Fill Password at least 6 characters.";
     }
     if (form.password !== form.confirmPassword) {
-      return "Password aur Confirm Password match nahi kar rahe.";
+      return "Password aur Confirm Password not matched.";
     }
     return "";
   };
@@ -64,7 +64,7 @@ export default function Signup({ onSwitchToLogin }) {
       return;
     }
 
-    setSuccessMsg("Account ban gaya! Email verify karke login karo.");
+    setSuccessMsg("Account created successfully! Email verify and login it.");
   };
 
   return (
