@@ -15,7 +15,7 @@ export default function Login({ onSwitchToSignup, onLoginSuccess }) {
     setError("");
 
     if (!form.email || !form.password) {
-      setError("Email aur password dono zaroori hai.");
+      setError("Email aur password both needed.");
       return;
     }
 
