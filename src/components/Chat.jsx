@@ -1,67 +1,65 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "../supabaseClient";
-import ThemeToggle from "./ThemeToggle";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL; // e.g. https://your-backend.onrender.com
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-const MODES = [
-  { key: "education", label: "Education" },
-  { key: "constitution", label: "Constitution" },
-  { key: "english", label: "English Speaking" },
-];
-
-export default function Chat({ user, onLogout, theme, onToggleTheme }) {
-  const [mode, setMode] = useState("education");
+export default function Chat({ user, onLogout, theme, onToggleTheme, onShowPrivacy }) {
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([]); // {role: "user"/"model", text: "..."}
+  const [messages, setMessages] = useState([]); // {role, text} or {role: "model", thinking: true}
   const [loading, setLoading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [appHeight, setAppHeight] = useState("100vh");
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const fullName = user?.user_metadata?.full_name || "Student";
+  const initial = fullName.charAt(0).toUpperCase();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Mobile keyboard khulne par viewport height sahi set karo (dvh CSS Android Chrome pe reliable nahi hota)
+  // Mobile keyboard khulne par viewport height sahi set karo
   useEffect(() => {
-    const updateHeight = () => {
-      const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-      setAppHeight(height + "px");
+    const setHeight = () => {
+      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      setAppHeight(h + "px");
     };
-    updateHeight();
-    window.addEventListener("resize", updateHeight);
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", updateHeight);
-    }
+    setHeight();
+    window.addEventListener("resize", setHeight);
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", setHeight);
     return () => {
-      window.removeEventListener("resize", updateHeight);
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener("resize", updateHeight);
+      window.removeEventListener("resize", setHeight);
+      if (window.visualViewport) window.visualViewport.removeEventListener("resize", setHeight);
+    };
+  }, []);
+
+  // Dropdown ke bahar click hone par band karo
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
       }
     };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleInputFocus = () => {
     setTimeout(() => inputRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }), 300);
   };
 
-  // Mode switch karne par history alag rakho (har mode ki apni conversation)
-  const handleModeSwitch = (newMode) => {
-    setMode(newMode);
-    setMessages([]);
-  };
-
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
+    const isFirstMessage = messages.length === 0;
     const userMsg = { role: "user", text: input };
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
+    const withUserMsg = [...messages, userMsg];
+    setMessages([...withUserMsg, { role: "model", thinking: true }]);
     setInput("");
     setLoading(true);
 
-    // Gemini format ke liye history convert karo
     const history = messages.map((m) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [m.text],
@@ -71,7 +69,7 @@ export default function Chat({ user, onLogout, theme, onToggleTheme }) {
       const res = await fetch(`${BACKEND_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, message: userMsg.text, history }),
+        body: JSON.stringify({ mode: "general", message: userMsg.text, history }),
       });
 
       if (!res.ok) {
@@ -84,10 +82,10 @@ export default function Chat({ user, onLogout, theme, onToggleTheme }) {
       }
 
       const data = await res.json();
-      setMessages([...updatedMessages, { role: "model", text: data.reply }]);
+      setMessages([...withUserMsg, { role: "model", text: data.reply }]);
     } catch (err) {
       console.error("Chat error:", err);
-      setMessages([...updatedMessages, { role: "model", text: "Error: " + err.message }]);
+      setMessages([...withUserMsg, { role: "model", text: "Error: " + err.message }]);
     } finally {
       setLoading(false);
     }
@@ -105,63 +103,106 @@ export default function Chat({ user, onLogout, theme, onToggleTheme }) {
     onLogout();
   };
 
+  const hasMessages = messages.length > 0;
+
   return (
     <div className="d-flex flex-column" style={{ height: appHeight }}>
       {/* Header */}
-      <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-body">
-        <span className="fw-semibold">Hi, {user?.user_metadata?.full_name || "Student"}</span>
-        <div className="d-flex gap-2">
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-          <button className="btn btn-sm btn-outline-secondary" onClick={handleLogout}>
-            Logout
+      <div className="d-flex justify-content-between align-items-center px-3 py-2 chat-header">
+        <span className="fw-semibold" id="userNameLabel">
+          Hi, {fullName}
+        </span>
+        <div className="d-flex gap-2 align-items-center">
+          <button className="btn btn-sm btn-outline-secondary" onClick={onToggleTheme}>
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
           </button>
+
+          <div className="dropdown position-relative" ref={menuRef}>
+            <button className="avatar-circle" onClick={() => setMenuOpen((o) => !o)}>
+              <span>{initial}</span>
+            </button>
+            {menuOpen && (
+              <ul
+                className="dropdown-menu dropdown-menu-end show"
+                style={{ position: "absolute", right: 0, top: "100%", marginTop: "8px" }}
+              >
+                <li className="px-3 py-1">
+                  <div className="fw-semibold">{fullName}</div>
+                  <div className="small text-muted">{user?.email}</div>
+                </li>
+                <li>
+                  <hr className="dropdown-divider" />
+                </li>
+                <li>
+                  <button
+                    className="dropdown-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onShowPrivacy();
+                    }}
+                  >
+                    Privacy Policy
+                  </button>
+                </li>
+                <li>
+                  <button className="dropdown-item text-danger" onClick={handleLogout}>
+                    Logout
+                  </button>
+                </li>
+              </ul>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Mode tabs */}
-      <ul className="nav nav-tabs px-3 pt-2 bg-body">
-        {MODES.map((m) => (
-          <li className="nav-item" key={m.key}>
-            <button
-              className={`nav-link ${mode === m.key ? "active" : ""}`}
-              onClick={() => handleModeSwitch(m.key)}
-            >
-              {m.label}
-            </button>
-          </li>
-        ))}
-      </ul>
+      {/* Title bar - shown once chat starts */}
+      {hasMessages && <div className="chat-title-bar">AI Study Buddy</div>}
 
       {/* Chat messages */}
-      <div className="flex-grow-1 overflow-auto px-3 py-3 bg-body-tertiary">
-        {messages.length === 0 && (
-          <p className="text-muted text-center mt-5">
-            {mode === "education" && "Ask any subject or exam-related question."}
-            {mode === "constitution" && "Ask anything about the Indian Constitution."}
-            {mode === "english" && "Type in English and I'll help correct your mistakes."}
-          </p>
-        )}
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`d-flex mb-2 ${m.role === "user" ? "justify-content-end" : "justify-content-start"}`}
-          >
-            <div
-              className={`p-2 px-3 rounded-3 ${
-                m.role === "user" ? "bg-primary text-white" : "bg-body border"
-              }`}
-              style={{ maxWidth: "75%", whiteSpace: "pre-wrap" }}
-            >
-              {m.text}
-            </div>
+      <div className="flex-grow-1 chat-window px-3 py-3">
+        {!hasMessages && (
+          <div className="welcome-screen">
+            <h2>Welcome AI Study Buddy</h2>
+            <p>Ask me anything - education, Indian Constitution, or practice your English.</p>
           </div>
-        ))}
-        {loading && <div className="text-muted small">Typing...</div>}
+        )}
+        {messages.map((m, i) => {
+          if (m.thinking) {
+            return (
+              <div key={i} className="d-flex justify-content-start">
+                <div className="msg-bubble msg-bot thinking-bubble">
+                  <div className="thinking-row">
+                    <span className="thinking-star">★</span>
+                    <span className="thinking-dots">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </span>
+                  </div>
+                  <span className="thinking-label">Thinking</span>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div
+              key={i}
+              className={`d-flex mb-2 ${m.role === "user" ? "justify-content-end" : "justify-content-start"}`}
+            >
+              <div
+                className={`msg-bubble ${m.role === "user" ? "msg-user" : "msg-bot"}`}
+                style={{ whiteSpace: "pre-wrap" }}
+              >
+                {m.text}
+              </div>
+            </div>
+          );
+        })}
         <div ref={bottomRef} />
       </div>
 
       {/* Input box */}
-      <div className="d-flex p-2 border-top bg-body">
+      <div className="d-flex p-2 chat-input-bar">
         <textarea
           ref={inputRef}
           className="form-control me-2"
