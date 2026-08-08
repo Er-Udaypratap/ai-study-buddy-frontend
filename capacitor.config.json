@@ -1,0 +1,9 @@
+{
+  "appId": "com.udaypratap.aistudybuddy",
+  "appName": "AI Study Buddy",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}
